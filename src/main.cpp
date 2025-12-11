@@ -89,11 +89,11 @@ int main(int argc, char * argv[]) {
 #ifdef HPCG_DETAILED_DEBUG
   if (size < 100 && rank==0) HPCG_fout << "Process "<<rank<<" of "<<size<<" is alive with " << params.numThreads << " threads." <<endl;
 
-  if (rank==0) {
-    char c;
-    std::cout << "Press key to continue"<< std::endl;
-    std::cin.get(c);
-  }
+  // if (rank==0) {
+  //   char c;
+  //   std::cout << "Press key to continue"<< std::endl;
+  //   std::cin.get(c);
+  // }
 #ifndef HPCG_NO_MPI
   MPI_Barrier(MPI_COMM_WORLD);
 #endif
@@ -103,6 +103,7 @@ int main(int argc, char * argv[]) {
   nx = (local_int_t)params.nx;
   ny = (local_int_t)params.ny;
   nz = (local_int_t)params.nz;
+  printf("Running HPCG with problem size %ld x %ld x %ld on %d processes\n", static_cast<long>(nx), static_cast<long>(ny), static_cast<long>(nz), size);
   int ierr = 0;  // Used to check return codes on function calls
 
   ierr = CheckAspectRatio(0.125, nx, ny, nz, "local problem", rank==0);
@@ -119,7 +120,9 @@ int main(int argc, char * argv[]) {
 
   // Construct the geometry and linear system
   Geometry * geom = new Geometry;
+  printf("0 - GenerateGeometry - START\n");
   GenerateGeometry(size, rank, params.numThreads, params.pz, params.zl, params.zu, nx, ny, nz, params.npx, params.npy, params.npz, geom);
+  printf("0 - GenerateGeometry - FINISH\n");
 
   ierr = CheckAspectRatio(0.125, geom->npx, geom->npy, geom->npz, "process grid", rank==0);
   if (ierr)
@@ -131,15 +134,25 @@ int main(int argc, char * argv[]) {
   double setup_time = mytimer();
 
   SparseMatrix A;
+  printf("1 - InitializeSparseMatrix - START\n");
   InitializeSparseMatrix(A, geom);
+  printf("1 - InitializeSparseMatrix - FINISH\n");
 
   Vector b, x, xexact;
+  printf("2 - GenerateProblem - START\n");
   GenerateProblem(A, &b, &x, &xexact);
+  printf("2 - GenerateProblem - FINISH\n");
+
+  printf("3 - ExchangeHalo - START\n");
   SetupHalo(A);
+  printf("3 - ExchangeHalo - FINISH\n");
+
   int numberOfMgLevels = 4; // Number of levels including first
   SparseMatrix * curLevelMatrix = &A;
   for (int level = 1; level< numberOfMgLevels; ++level) {
+    printf("4 - GenerateCoarseProblem - START - level %d\n", level);
     GenerateCoarseProblem(*curLevelMatrix);
+    printf("4 - GenerateCoarseProblem - FINISH - level %d\n", level);
     curLevelMatrix = curLevelMatrix->Ac; // Make the just-constructed coarse grid the next level
   }
 
@@ -151,7 +164,9 @@ int main(int argc, char * argv[]) {
   Vector * curx = &x;
   Vector * curxexact = &xexact;
   for (int level = 0; level< numberOfMgLevels; ++level) {
+     printf("5 - CheckProblem - START - level %d\n", level);
      CheckProblem(*curLevelMatrix, curb, curx, curxexact);
+     printf("5 - CheckProblem - FINISH - level %d\n", level);
      curLevelMatrix = curLevelMatrix->Ac; // Make the nextcoarse grid the next level
      curb = 0; // No vectors after the top level
      curx = 0;
@@ -160,7 +175,9 @@ int main(int argc, char * argv[]) {
 
 
   CGData data;
+  printf("6 - InitializeSparseCGData - START\n");
   InitializeSparseCGData(A, data);
+  printf("6 - InitializeSparseCGData - FINISH\n");
 
 
 
@@ -174,21 +191,31 @@ int main(int argc, char * argv[]) {
   local_int_t ncol = A.localNumberOfColumns;
 
   Vector x_overlap, b_computed;
+  printf("7 - InitializeVector x_overlap - START\n");
   InitializeVector(x_overlap, ncol); // Overlapped copy of x vector
+  printf("7 - InitializeVector x_overlap - FINISH\n");
+  printf("8 - InitializeVector b_computed - START\n");
   InitializeVector(b_computed, nrow); // Computed RHS vector
+  printf("8 - InitializeVector b_computed - FINISH\n");
 
 
   // Record execution time of reference SpMV and MG kernels for reporting times
   // First load vector with random values
+  printf("9 - FillRandomVector x_overlap - START\n");
   FillRandomVector(x_overlap);
+  printf("9 - FillRandomVector x_overlap - FINISH\n");
 
   int numberOfCalls = 10;
   if (quickPath) numberOfCalls = 1; //QuickPath means we do on one call of each block of repetitive code
   double t_begin = mytimer();
   for (int i=0; i< numberOfCalls; ++i) {
+    printf("10 - ComputeSPMV_ref - START - call %d\n", i);
     ierr = ComputeSPMV_ref(A, x_overlap, b_computed); // b_computed = A*x_overlap
+    printf("10 - ComputeSPMV_ref - FINISH - call %d\n", i);
     if (ierr) HPCG_fout << "Error in call to SpMV: " << ierr << ".\n" << endl;
+    printf("11 - ComputeMG_ref - START - call %d\n", i);
     ierr = ComputeMG_ref(A, b_computed, x_overlap); // b_computed = Minv*y_overlap
+    printf("11 - ComputeMG_ref - FINISH - call %d\n", i);
     if (ierr) HPCG_fout << "Error in call to MG: " << ierr << ".\n" << endl;
   }
   times[8] = (mytimer() - t_begin)/((double) numberOfCalls);  // Total time divided by number of calls.
@@ -218,7 +245,9 @@ int main(int argc, char * argv[]) {
   int err_count = 0;
   for (int i=0; i< numberOfCalls; ++i) {
     ZeroVector(x);
+    printf("12 - CG_ref call - START - call %d\n", i);
     ierr = CG_ref( A, data, b, x, refMaxIters, tolerance, niters, normr, normr0, &ref_times[0], true);
+    printf("12 - CG_ref call - FINISH - call %d\n", i);
     if (ierr) ++err_count; // count the number of errors in CG
     totalNiters_ref += niters;
   }
@@ -227,7 +256,9 @@ int main(int argc, char * argv[]) {
 
   // Call user-tunable set up function.
   double t7 = mytimer();
+  printf("13 - OptimizeProblem - START\n");
   OptimizeProblem(A, data, b, x, xexact);
+  printf("13 - OptimizeProblem - FINISH\n");
   t7 = mytimer() - t7;
   times[7] = t7;
 #ifdef HPCG_DEBUG
@@ -235,7 +266,9 @@ int main(int argc, char * argv[]) {
 #endif
 
 #ifdef HPCG_DETAILED_DEBUG
+  printf("14 - WriteProblem - START\n");
   if (geom->size == 1) WriteProblem(*geom, A, b, x, xexact);
+  printf("14 - WriteProblem - FINISH\n");
 #endif
 
 
@@ -248,10 +281,14 @@ int main(int argc, char * argv[]) {
 #endif
   TestCGData testcg_data;
   testcg_data.count_pass = testcg_data.count_fail = 0;
+  printf("15 - TestCG - START\n");
   TestCG(A, data, b, x, testcg_data);
+  printf("15 - TestCG - FINISH\n");
 
   TestSymmetryData testsymmetry_data;
+  printf("16 - TestSymmetry - START\n");
   TestSymmetry(A, b, xexact, testsymmetry_data);
+  printf("16 - TestSymmetry - FINISH\n");
 
 #ifdef HPCG_DEBUG
   if (rank==0) HPCG_fout << "Total validation (TestCG and TestSymmetry) execution time in main (sec) = " << mytimer() - t1 << endl;
@@ -281,7 +318,9 @@ int main(int argc, char * argv[]) {
   for (int i=0; i< numberOfCalls; ++i) {
     ZeroVector(x); // start x at all zeros
     double last_cummulative_time = opt_times[0];
+    printf("17 - Optimized CG call - START - call %d\n", i);
     ierr = CG( A, data, b, x, optMaxIters, refTolerance, niters, normr, normr0, &opt_times[0], true);
+    printf("17 - Optimized CG call - FINISH - call %d\n", i);
     if (ierr) ++err_count; // count the number of errors in CG
     // Convergence check accepts an error of no more than 6 significant digits of relTolerance
     if (normr / normr0 > refTolerance * (1.0 + 1.0e-6)) ++tolerance_failures; // the number of failures to reduce residual
@@ -334,7 +373,9 @@ int main(int argc, char * argv[]) {
 
   for (int i=0; i< numberOfCgSets; ++i) {
     ZeroVector(x); // Zero out x
+    printf("18 - Timed Optimized CG call - START - set %d\n", i);
     ierr = CG( A, data, b, x, optMaxIters, optTolerance, niters, normr, normr0, &times[0], true);
+    printf("18 - Timed Optimized CG call - FINISH - set %d\n", i);
     if (ierr) HPCG_fout << "Error in call to CG: " << ierr << ".\n" << endl;
     if (rank==0) HPCG_fout << "Call [" << i << "] Scaled Residual [" << normr/normr0 << "]" << endl;
     testnorms_data.values[i] = normr/normr0; // Record scaled residual from this run
@@ -344,7 +385,9 @@ int main(int argc, char * argv[]) {
   // All processors are needed here.
 #ifdef HPCG_DEBUG
   double residual = 0;
+  printf("19 - ComputeResidual - START\n");
   ierr = ComputeResidual(A.localNumberOfRows, x, xexact, residual);
+  printf("19 - ComputeResidual - FINISH\n");
   if (ierr) HPCG_fout << "Error in call to compute_residual: " << ierr << ".\n" << endl;
   if (rank==0) HPCG_fout << "Difference between computed and exact  = " << residual << ".\n" << endl;
 #endif
@@ -357,7 +400,9 @@ int main(int argc, char * argv[]) {
   ////////////////////
 
   // Report results to YAML file
+  printf("20 - ReportResults - START\n");
   ReportResults(A, numberOfMgLevels, numberOfCgSets, refMaxIters, optMaxIters, &times[0], testcg_data, testsymmetry_data, testnorms_data, global_failure, quickPath);
+  printf("20 - ReportResults - FINISH\n");
 
   // Clean up
   DeleteMatrix(A); // This delete will recursively delete all coarse grid data
@@ -371,7 +416,9 @@ int main(int argc, char * argv[]) {
 
 
 
+  printf("21 - HPCG_Finalize - START\n");
   HPCG_Finalize();
+  printf("21 - HPCG_Finalize - FINISH\n");
 
   // Finish up
 #ifndef HPCG_NO_MPI
