@@ -52,18 +52,18 @@ int ComputeDotProduct_ref(const local_int_t n, const Vector & x, const Vector & 
   double * xv = x.values;
   double * yv = y.values;
   if (yv==xv) {
-#ifndef HPCG_NO_OPENMP
+    #ifndef HPCG_NO_OPENMP
     #pragma omp parallel for reduction (+:local_result)
-#endif
+    #endif
     for (local_int_t i=0; i<n; i++) local_result += xv[i]*xv[i];
   } else {
-#ifndef HPCG_NO_OPENMP
+    #ifndef HPCG_NO_OPENMP
     #pragma omp parallel for reduction (+:local_result)
-#endif
+    #endif
     for (local_int_t i=0; i<n; i++) local_result += xv[i]*yv[i];
   }
 
-#ifndef HPCG_NO_MPI
+  #ifndef HPCG_NO_MPI
   // Use MPI's reduce function to collect all partial sums
   double t0 = mytimer();
   double global_result = 0.0;
@@ -71,10 +71,10 @@ int ComputeDotProduct_ref(const local_int_t n, const Vector & x, const Vector & 
       MPI_COMM_WORLD);
   result = global_result;
   time_allreduce += mytimer() - t0;
-#else
+  #else
   time_allreduce += 0.0;
   result = local_result;
-#endif
+  #endif
 
   return 0;
 }

@@ -72,7 +72,8 @@ void GenerateProblem_ref(SparseMatrix & A, Vector * b, Vector * x, Vector * xexa
 
 
   // Allocate arrays that are of length localNumberOfRows
-  char * nonzerosInRow = new char[localNumberOfRows];
+  // char * nonzerosInRow = new char[localNumberOfRows];
+  local_int_t * nonzerosInRow = new local_int_t[localNumberOfRows];
   global_int_t ** mtxIndG = new global_int_t*[localNumberOfRows];
   local_int_t  ** mtxIndL = new local_int_t*[localNumberOfRows];
   double ** matrixValues = new double*[localNumberOfRows];

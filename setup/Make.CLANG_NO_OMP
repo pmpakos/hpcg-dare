@@ -108,8 +108,8 @@ HPCG_LIBS     =
 #    *) Build with OpenMP enabled.
 #    *) Not generate debugging output.
 #
-#HPCG_OPTS     = -DHPCG_CONTIGUOUS_ARRAYS -DHPCG_NO_OPENMP -DHPCG_NO_MPI -DHPCG_DEBUG
-HPCG_OPTS     = -DHPCG_CONTIGUOUS_ARRAYS -DHPCG_NO_MPI -DHPCG_DEBUG
+HPCG_OPTS     = -DHPCG_CONTIGUOUS_ARRAYS -DHPCG_NO_OPENMP -DHPCG_NO_MPI -DHPCG_DEBUG
+#HPCG_OPTS     = -DHPCG_CONTIGUOUS_ARRAYS -DHPCG_NO_MPI -DHPCG_DEBUG
 #
 # ----------------------------------------------------------------------
 #

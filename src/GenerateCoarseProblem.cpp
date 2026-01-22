@@ -65,6 +65,7 @@ void GenerateCoarseProblem(const SparseMatrix & Af) {
 
 
   // TODO:  This triply nested loop could be flattened or use nested parallelism
+#if 0
 #ifndef HPCG_NO_OPENMP
   #pragma omp parallel for
 #endif
@@ -80,6 +81,23 @@ void GenerateCoarseProblem(const SparseMatrix & Af) {
       } // end iy loop
     } // end even iz if statement
   } // end iz loop
+#else
+#ifndef HPCG_NO_OPENMP
+  #pragma omp parallel for
+#endif
+  for (local_int_t i=0; i<nxc*nyc*nzc; ++i) {
+    local_int_t ixc = i/(nyc*nzc);
+    local_int_t rxc = i%(nyc*nzc);
+    local_int_t iyc = rxc/nzc;
+    local_int_t izc = rxc%nzc;
+    local_int_t izf = 2*izc;
+    local_int_t iyf = 2*iyc;
+    local_int_t ixf = 2*ixc;
+    local_int_t currentCoarseRow = izc*nxc*nyc+iyc*nxc+ixc;
+    local_int_t currentFineRow = izf*nxf*nyf+iyf*nxf+ixf;
+    f2cOperator[currentCoarseRow] = currentFineRow;
+  } // end i loop
+#endif
 
   // Construct the geometry and linear system
   Geometry * geomc = new Geometry;
