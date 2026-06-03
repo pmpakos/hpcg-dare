@@ -300,7 +300,7 @@ int main(int argc, char * argv[]) {
 
   // Check that it is working until here... No need to perform timing of optimized CG if tests fail.
   // TestCG calls CG, where we use the optimized kernels.
-  return 0;
+  //return 0;
 
   TestSymmetryData testsymmetry_data;
   printf("16 - TestSymmetry - START\n");
