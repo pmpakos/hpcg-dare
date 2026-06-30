@@ -23,7 +23,9 @@
 #endif
 
 #include "ComputeProlongation_ref.hpp"
-
+#include <cassert>
+#include <riscv_vector.h>
+#include <omp.h>
 /*!
   Routine to compute the coarse residual vector.
 
@@ -50,3 +52,22 @@ int ComputeProlongation_ref(const SparseMatrix & Af, Vector & xf) {
 
   return 0;
 }
+
+//@HEADER
+// ***************************************************
+//
+// HPCG: High Performance Conjugate Gradient Benchmark
+//
+// Contact:
+// Michael A. Heroux ( maherou@sandia.gov)
+// Jack Dongarra     (dongarra@eecs.utk.edu)
+// Piotr Luszczek    (piotr@icl.utk.edu)
+//
+// ***************************************************
+//@HEADER
+
+/*!
+ @file ComputeProlongation.cpp
+
+ HPCG routine
+ */

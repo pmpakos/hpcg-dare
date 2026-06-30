@@ -115,10 +115,27 @@ int ComputeProlongation_ref(const SparseMatrix & Af, Vector & xf) {
     }
   }
 #else
-  for (local_int_t i = 0; i < nc; i++) {
-    xfv[f2c[i]] += xcv[i];
-  }
+  for (local_int_t i = 0; i < nc; ) {
+    size_t vl = __riscv_vsetvl_e64m1(nc - i);
+
+    vfloat64m1_t v_xc = __riscv_vle64_v_f64m1(xcv + i, vl);
+
+#if defined(HPCG_INDEX_64)
+    vuint64m1_t idx = __riscv_vle64_v_u64m1((const uint64_t *)(f2c + i), vl);
+#else
+    vuint32mf2_t idx32 = __riscv_vle32_v_u32mf2((const uint32_t *)(f2c + i), vl);
+    vuint64m1_t idx = __riscv_vzext_vf2_u64m1(idx32, vl);
 #endif
 
+    idx = __riscv_vsll_vx_u64m1(idx, 3, vl);
+
+    vfloat64m1_t v_old = __riscv_vluxei64_v_f64m1(xfv, idx, vl);
+    vfloat64m1_t v_new = __riscv_vfadd_vv_f64m1(v_old, v_xc, vl);
+
+    __riscv_vsuxei64_v_f64m1(xfv, idx, v_new, vl);
+
+    i += vl;
+  }
+#endif
   return 0;
 }
