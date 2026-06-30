@@ -22,8 +22,8 @@
 #include "ComputeMG_ref.hpp"
 #include "ComputeSPMV.hpp"
 #include "ComputeSYMGS.hpp"
-#include "ComputeRestriction.hpp"
-#include "ComputeProlongation.hpp"
+#include "ComputeRestriction_ref.hpp"
+#include "ComputeProlongation_ref.hpp"
 /*!
   @param[in] A the known system matrix
   @param[in] r the input vector
@@ -55,11 +55,11 @@ int ComputeMG(const SparseMatrix & A, const Vector & r, Vector & x) {
     ierr = ComputeSPMV(A, x, *A.mgData->Axf);
     if (ierr!=0) return ierr;
     // Perform restriction operation using simple injection
-    ierr = ComputeRestriction(A, r);
+    ierr = ComputeRestriction_ref(A, r);
     if (ierr!=0) return ierr;
     ierr = ComputeMG(*A.Ac,*A.mgData->rc, *A.mgData->xc);
     if (ierr!=0) return ierr;
-    ierr = ComputeProlongation(A, x);
+    ierr = ComputeProlongation_ref(A, x);
     if (ierr!=0) return ierr;
     int numberOfPostsmootherSteps = A.mgData->numberOfPostsmootherSteps;
     for (int i=0; i< numberOfPostsmootherSteps; ++i) {

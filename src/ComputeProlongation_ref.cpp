@@ -37,7 +37,7 @@
 
   @return Returns zero on success and a non-zero value otherwise.
 */
-int ComputeProlongation_ref(const SparseMatrix & Af, Vector & xf) {
+/*int ComputeProlongation_ref(const SparseMatrix & Af, Vector & xf) {
 
   double * xfv = xf.values;
   double * xcv = Af.mgData->xc->values;
@@ -52,22 +52,73 @@ int ComputeProlongation_ref(const SparseMatrix & Af, Vector & xf) {
 
   return 0;
 }
+*/
 
-//@HEADER
-// ***************************************************
-//
-// HPCG: High Performance Conjugate Gradient Benchmark
-//
-// Contact:
-// Michael A. Heroux ( maherou@sandia.gov)
-// Jack Dongarra     (dongarra@eecs.utk.edu)
-// Piotr Luszczek    (piotr@icl.utk.edu)
-//
-// ***************************************************
-//@HEADER
+int ComputeProlongation_ref(const SparseMatrix & Af, Vector & xf) {
 
-/*!
- @file ComputeProlongation.cpp
 
- HPCG routine
- */
+  assert(Af.mgData != 0);
+
+  const local_int_t nc = Af.mgData->rc->localLength;
+  const local_int_t * const f2c = Af.mgData->f2cOperator;
+  const double * const xcv = Af.mgData->xc->values;
+  double * const xfv = xf.values;
+
+#ifndef HPCG_NO_OPENMP
+#pragma omp parallel
+  {
+    int tid = omp_get_thread_num();
+    int nthreads = omp_get_num_threads();
+
+    local_int_t chunk = nc / nthreads;
+    local_int_t start = tid * chunk;
+    local_int_t end = (tid == nthreads - 1) ? nc : start + chunk;
+
+    for (local_int_t i = start; i < end; ) {
+      size_t vl = __riscv_vsetvl_e64m1(end - i);
+
+      vfloat64m1_t v_xc = __riscv_vle64_v_f64m1(xcv + i, vl);
+
+#if defined(HPCG_INDEX_64)
+      vuint64m1_t idx = __riscv_vle64_v_u64m1((const uint64_t *)(f2c + i), vl);
+#else
+      vuint32mf2_t idx32 = __riscv_vle32_v_u32mf2((const uint32_t *)(f2c + i), vl);
+      vuint64m1_t idx = __riscv_vzext_vf2_u64m1(idx32, vl);
+#endif
+
+      idx = __riscv_vsll_vx_u64m1(idx, 3, vl);
+
+      vfloat64m1_t v_old = __riscv_vluxei64_v_f64m1(xfv, idx, vl);
+      vfloat64m1_t v_new = __riscv_vfadd_vv_f64m1(v_old, v_xc, vl);
+
+      __riscv_vsuxei64_v_f64m1(xfv, idx, v_new, vl);
+
+      i += vl;
+    }
+  }
+#else
+  for (local_int_t i = 0; i < nc; ) {
+    size_t vl = __riscv_vsetvl_e64m1(nc - i);
+
+    vfloat64m1_t v_xc = __riscv_vle64_v_f64m1(xcv + i, vl);
+
+#if defined(HPCG_INDEX_64)
+    vuint64m1_t idx = __riscv_vle64_v_u64m1((const uint64_t *)(f2c + i), vl);
+#else
+    vuint32mf2_t idx32 = __riscv_vle32_v_u32mf2((const uint32_t *)(f2c + i), vl);
+    vuint64m1_t idx = __riscv_vzext_vf2_u64m1(idx32, vl);
+#endif
+
+    idx = __riscv_vsll_vx_u64m1(idx, 3, vl);
+
+    vfloat64m1_t v_old = __riscv_vluxei64_v_f64m1(xfv, idx, vl);
+    vfloat64m1_t v_new = __riscv_vfadd_vv_f64m1(v_old, v_xc, vl);
+
+    __riscv_vsuxei64_v_f64m1(xfv, idx, v_new, vl);
+
+    i += vl;
+  }
+#endif
+  return 0;
+}
+
