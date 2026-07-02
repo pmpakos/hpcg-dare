@@ -22,7 +22,9 @@
 #ifndef HPCG_NO_OPENMP
 #include <omp.h>
 #endif
-
+#include <cassert>
+#include <riscv_vector.h>
+#include <omp.h>
 #include "ComputeRestriction_ref.hpp"
 
 /*!
@@ -37,7 +39,7 @@
 
   @return Returns zero on success and a non-zero value otherwise.
 */
-/*int ComputeRestriction_ref(const SparseMatrix & A, const Vector & rf) {
+int ComputeRestriction_ref(const SparseMatrix & A, const Vector & rf) {
 
   double * Axfv = A.mgData->Axf->values;
   double * rfv = rf.values;
@@ -51,13 +53,10 @@
   for (local_int_t i=0; i<nc; ++i) rcv[i] = rfv[f2c[i]] - Axfv[f2c[i]];
 
   return 0;
-}*/
+}
 
-#include <cassert>
-#include <riscv_vector.h>
-#include <omp.h>
 
-int ComputeRestriction_ref(const SparseMatrix & A, const Vector & rf) {
+int ComputeRestriction(const SparseMatrix & A, const Vector & rf) {
   //isOptimized = true;
   assert(A.mgData != 0);
   const double * const Axfv = A.mgData->Axf->values;
